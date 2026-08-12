@@ -1,0 +1,45 @@
+#!/bin/bash
+#PBS -N ploidy_array
+#PBS -l nodes=node19:ppn=4
+#PBS -l mem=42gb
+#PBS -l walltime=400:00:00
+#PBS -j oe
+#PBS -o /sdm/scratch/priyanshi/logs/ploidy_array_^array_index^.log
+#PBS -t 1-40%6
+
+source ~/.bashrc
+conda activate genomescope_env
+
+BASE=/sdm/scratch/priyanshi/svArcher_Standalone/results/masked_hops/filtered_fastqs
+OUTDIR=/sdm/scratch/priyanshi/ploidy_analysis
+LOCALTMP=/sdc/home/priyanshi/kmc_tmp
+SAMPLE_LIST=${OUTDIR}/sample_list.txt
+
+sample=$(sed -n "${PBS_ARRAYID}p" ${SAMPLE_LIST})
+
+echo "Processing sample: $sample (array index: ${PBS_ARRAYID})"
+
+mkdir -p ${LOCALTMP}/${sample}
+
+# Step 1: KMC — using LOCAL disk for tmp, not NFS
+ls ${BASE}/${sample}/L*_1.fastq.gz ${BASE}/${sample}/L*_2.fastq.gz \
+    > ${OUTDIR}/kmer_counts/${sample}_files.txt
+
+kmc -k21 -t4 -m40 -ci1 -cs10000 \
+    @${OUTDIR}/kmer_counts/${sample}_files.txt \
+    ${OUTDIR}/kmer_counts/${sample} \
+    ${LOCALTMP}/${sample}/
+
+kmc_tools transform ${OUTDIR}/kmer_counts/${sample} \
+    histogram ${OUTDIR}/kmer_counts/${sample}.hist -cx10000
+
+# clean up local tmp immediately after KMC finishes for this sample
+rm -rf ${LOCALTMP}/${sample}
+
+# Step 2: GenomeScope2 at p=2
+genomescope.R \
+    -i ${OUTDIR}/kmer_counts/${sample}.hist \
+    -o ${OUTDIR}/genomescope_out/${sample}_p2 \
+    -k 21 -p 2
+
+echo "Finished: $sample"

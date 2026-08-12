@@ -1,0 +1,6 @@
+.*fastq.gz
+.hist
+.kmc_pre
+tmp_kmc/
+logs/
+*.log
