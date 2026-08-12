@@ -1,29 +1,50 @@
 # Hops Ploidy Analysis
 
-K-mer based ploidy estimation for *Humulus lupulus* samples using KMC and GenomeScope2.
+K-mer based ploidy estimation for *Humulus lupulus* (hops) samples using KMC and GenomeScope2.
 
-## Overview
+## Biological Motivation
 
-This pipeline estimates ploidy, homozygosity, and heterozygosity for 192 *H. lupulus* samples
-across two HPC clusters using k-mer frequency profiling.
+Ploidy — the number of complete chromosome sets in a cell — is a fundamental genomic property
+with direct implications for breeding, genome assembly, and population genetics. *Humulus lupulus*
+(common hop) is typically diploid (2n=20), but polyploid individuals have been documented. 
+Accurate ploidy estimation is essential before downstream analyses such as variant calling or 
+genome assembly, as tools and parameters differ substantially between diploid and polyploid genomes.
 
-## Tools
-
-- **KMC v3.2.4** — k-mer counting from paired-end Illumina reads
-- **GenomeScope2 v2.0** — genome profiling and ploidy modeling (k=21, p=2)
+This pipeline provides a reference-free, sequencing-based approach to estimate ploidy across
+large sample sets using k-mer frequency profiling.
 
 ## Pipeline
 
-1. K-mer counting per sample using KMC (k=21)
-2. K-mer histogram generation
-3. Genome profiling with GenomeScope2 (p=2)
-4. Summary table aggregation across all samples
+<img src="hops_ploidy_pipeline.svg" width="600"/>
 
-## Repository Structure
+### Steps
 
-- `scripts/` — job submission and aggregation scripts
-- `results/` — per-batch TSV summary tables
-- `docs/` — methods notes and caveats
+1. **Quality trimming** — adapter removal and quality filtering with fastp
+2. **K-mer counting** — count k-mers from paired-end reads using KMC (k=21)
+3. **Histogram generation** — export k-mer frequency spectrum with kmc_tools
+4. **Genome profiling** — fit a statistical model to the k-mer histogram using GenomeScope2 (p=2)
+5. **Aggregation** — summarize homozygosity, heterozygosity, genome size, and inferred ploidy
+   across all samples using the provided aggregation script
+
+## Tools and Versions
+
+| Tool | Version | Purpose |
+|------|---------|---------|
+| fastp | 1.3.4 | Quality trimming and adapter removal |
+| KMC | 3.2.4 | K-mer counting |
+| GenomeScope2 | 2.0 | Genome profiling and ploidy modeling |
+
+## Cluster Setup
+
+This analysis was run across two institutional HPC clusters with different job schedulers:
+
+- **Cluster 1 (PBS/Torque)** — 40 samples; job script: `scripts/kmc_genomescope_array_pbs.pbs`
+- **Cluster 2 (SLURM)** — 164 samples; job script: `scripts/kmc_genomescope_array_slurm.slurm`
+
+Both scripts run the same pipeline (KMC → histogram → GenomeScope2) but differ in scheduler
+syntax (`#PBS` vs `#SBATCH`), array task variable (`PBS_ARRAYID` vs `SLURM_ARRAY_TASK_ID`),
+and resource request format. The conda environment (`genomescope_env`) was set up independently
+on each cluster using miniconda3/miniforge3.
 
 ## Environment Setup
 
@@ -59,17 +80,11 @@ pip install smudgeplot --no-deps
 - Smudgeplot v0.5.3 was installed but ultimately not used due to insufficient sequencing 
   coverage (~15-20x) for reliable heterozygous k-mer pair detection
 
-## Cluster Setup
 
-This analysis was run across two institutional HPC clusters with different job schedulers:
+## Repository Structure
 
-- **Cluster 1 (PBS/Torque)** — 40 samples; job script: `scripts/kmc_genomescope_array_pbs.pbs`
-- **Cluster 2 (SLURM)** — 164 samples; job script: `scripts/kmc_genomescope_array_slurm.slurm`
-
-Both scripts run the same pipeline (KMC → histogram → GenomeScope2) but differ in scheduler
-syntax (`#PBS` vs `#SBATCH`), array task variable (`PBS_ARRAYID` vs `SLURM_ARRAY_TASK_ID`),
-and resource request format. The conda environment (`genomescope_env`) was set up independently
-on each cluster using miniconda3/miniforge3.
+- `scripts/` — job submission and aggregation scripts
+- `results/` — per-batch TSV summary tables
 
 ## Key Findings
 
